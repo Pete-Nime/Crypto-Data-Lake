@@ -1,0 +1,35 @@
+import json
+import boto3
+import urllib.request
+from datetime import datetime
+
+s3 = boto3.client('s3')
+
+BUCKET_NAME = "crypto-etl-raw-data-pete"
+
+def lambda_handler(event, context):
+    
+    url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1"
+
+    # Call API using built-in urllib
+    response = urllib.request.urlopen(url)
+
+    # Read and decode JSON response
+    data = json.loads(response.read().decode())
+
+    # Correct timestamp function
+    timestamp = datetime.utcnow().strftime('%Y-%m-%d-%H-%M-%S')
+
+    file_name = f"cryptos_{timestamp}.json"
+
+    # Upload to S3
+    s3.put_object(
+        Bucket=BUCKET_NAME,
+        Key=file_name,
+        Body=json.dumps(data)
+    )
+
+    return {
+        "status": "Success",
+        "file": file_name
+    }
