@@ -1,0 +1,51 @@
+import json
+import boto3
+import csv
+from io import StringIO
+
+s3 = boto3.client('s3')
+
+RAW_BUCKET = "crypto-etl-raw-data-pete"
+PROCESSED_BUCKET = "crypto-etl-processed-data-pete"
+
+def lambda_handler(event, context):
+
+    # Get uploaded file info from S3 trigger
+    key = event['Records'][0]['s3']['object']['key']
+
+    # Read JSON from S3
+    obj = s3.get_object(Bucket=RAW_BUCKET, Key=key)
+    data = json.loads(obj['Body'].read())
+
+    # Select important fields
+    processed_data = []
+    for item in data:
+        processed_data.append({
+            'id': item.get('id'),
+            'symbol': item.get('symbol'),
+            'name': item.get('name'),
+            'current_price': item.get('current_price'),
+            'market_cap': item.get('market_cap'),
+            'total_volume': item.get('total_volume'),
+            'price_change_percentage_24h': item.get('price_change_percentage_24h'),
+            'ath': item.get('ath'),
+            'atl': item.get('atl'),
+            'last_updated': item.get('last_updated')
+        })
+
+    # Convert to CSV
+    csv_buffer = StringIO()
+    writer = csv.DictWriter(csv_buffer, fieldnames=processed_data[0].keys())
+    writer.writeheader()
+    writer.writerows(processed_data)
+
+    # Upload CSV to processed bucket
+    new_key = key.replace(".json", ".csv")
+
+    s3.put_object(
+        Bucket=PROCESSED_BUCKET,
+        Key=new_key,
+        Body=csv_buffer.getvalue()
+    )
+
+    return {"status": "transformed", "file": new_key}
